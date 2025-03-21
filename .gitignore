@@ -172,3 +172,9 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Ignore environment folder
+py311
+
+*.pkl
+*.npy
