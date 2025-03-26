@@ -1,4 +1,5 @@
 # %%
+import os
 import numpy as np
 from uaibot import Robot
 
@@ -165,10 +166,13 @@ curve_q = circle_rn(
 )
 curve = [np.array(kinova.fkm(q=q)) for q in curve_q]
 
-resampled_curve = resample_curve(curve, 0.01)
+resampled_curve = resample_curve(curve, 0.008)
 print(len(curve), len(resampled_curve))
 curve = np.array(resampled_curve)
 
-file_name = "resampled_curve.npy"
-print(f"Saved resampled curve as {file_name}")
-np.save(file_name, curve)
+# file_name = "resampled_curve.npy"
+# print("Current path:", os.getcwd())
+# print(f"Saved resampled curve as '{file_name}'")
+# np.save(file_name, curve)
+
+# %%

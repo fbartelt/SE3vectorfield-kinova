@@ -5,20 +5,23 @@ import plotly.graph_objects as go
 from uaibot import Robot
 from plotly.subplots import make_subplots
 
-with open("./data.pkl", "rb") as f:
+with open("/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/data.pkl", "rb") as f:
     data = pickle.load(f)
 
 config_hist = data["config_hist"]
 hist_index = data["hist_index"]
 hist_dist = data["hist_dist"]
+hist_time = data["hist_time"]
 
 kinova = Robot.create_kinova_gen3(name="kinova")
 
-curve = np.load('resampled_curve.npy')
+curve = np.load('/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve.npy')
 
 ori_errs = []
 pos_errs = []
-for i, q in enumerate(config_hist):
+for i, q in enumerate(config_hist[:-1]):
+# for i in range(np.minimum(len(config_hist), len(hist_index))):
+    # q = config_hist[i]
     q_ = np.array(q.copy()).reshape(-1, 1)
     state = np.array(kinova.fkm(q=q_))
     closest_point = np.array(curve[hist_index[i]])
@@ -38,7 +41,8 @@ for i, q in enumerate(config_hist):
 # makes a figure with two plots, one above another. First the position error, then the orientation error
 dt = 0.01
 # time_vec = np.arange(0, len(pos_errs) * dt, dt)
-time_vec = np.arange(0, len(pos_errs))
+# time_vec = np.arange(0, len(pos_errs))
+time_vec = hist_time
 fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02)
 fig.add_trace(go.Scatter(x=time_vec, y=hist_dist, showlegend=False, line=dict(width=3)), row=1, col=1)
 fig.add_trace(go.Scatter(x=time_vec, y=pos_errs, showlegend=False, line=dict(width=3)), row=2, col=1)

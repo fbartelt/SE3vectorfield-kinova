@@ -110,6 +110,8 @@ def compute_nextq(
     dt=0.01,
     hist_index=[],
     hist_dist=[],
+    delta=1e-3,
+    ds=1e-3,
 ):
     q = np.array(q.copy()).reshape(-1, 1)
     J, H = robot.jac_geo(q=q)
@@ -122,8 +124,8 @@ def compute_nextq(
         kn1=kn1,
         kn2=kn2,
         # curve_derivative=curve_derivative,
-        delta=1e-3,
-        ds=1e-3,
+        delta=delta,
+        ds=ds,
         mode="c++",
     )
     hist_index.append(min_index)
@@ -173,10 +175,12 @@ config_velocity[:] = 0  # Set all elements (flag and data) to 0
 hist_index = []
 hist_dist = []
 config_hist = []
+time_hist = []
 try:
     print("Start control.py")
     print("Creating UAIBot Kinova")
     kinova = Robot.create_kinova_gen3(name="kinova")
+    
     # n_points = 1000
     # radius = 0.15
     # dx = 0.0
@@ -196,18 +200,24 @@ try:
     # )
     # print("Creating curve in HTM")
     # curve = [np.array(kinova.fkm(q=q)) for q in curve_q]
+
     print("Loading curve from .npy")
-    curve = np.load("resampled_curve.npy")
+    curve_ = np.load("/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve.npy")
+    curve = [H for H in curve_]
     point_mat = get_points_from_curve(curve)
     target = PointCloud(name="target", points=point_mat, size=0.01, color="cyan")
 
-    kinova.set_ani_frame(q=config_mapping([0, 0, 0, 5, 0, 10, 0], "from_kinova"))
+    # kinova.set_ani_frame(q=config_mapping([0, 0, 0, 5, 0, 10, 0], "from_kinova"))
+    kinova.set_ani_frame(q=config_mapping([0, 10, 0, 15, 0, 40, 30], "from_kinova"))
+    # kinova.set_ani_frame(q=config_mapping([0, 10, 0, 15, 0, 40., 180.72], "from_kinova"))
     sim = Simulation.create_sim_grid([kinova, target])
     print("!! Ready !!")
     # kt1, kt2, kt3 = 0.03, 0.5, 1.0
     # kn1, kn2 = 0.02, 20.0
-    kt1, kt2, kt3 = 0.03, 1.0, 0.25
-    kn1, kn2 = 1.0, 0.25
+    kt1, kt2, kt3 = 0.03, 1.0, 1.0
+    # 0.03
+    kn1, kn2 = 0.08, 1.0
+    # 0.08
     dt = 0.01
     i = 1
     set_time = True
@@ -215,15 +225,22 @@ try:
 
     while True:
         # Read current_config from shared memory
-        if current_config[0] == 1:
-            if set_time:
-                t0 = time.time()
-                time_ = 0
-                set_time = False
+        # if current_config[0] == 1:
+        if True:
             config = current_config.copy()
             config[1:] = config_mapping(config[1:], maptype="from_kinova")
             print(f"Received current_config: {config}")
+            # if current_config[0] == 1 and set_time:
+            #     t0 = time.time()
+            #     time_ = 0
+            #     set_time = False
+            #     hist_index = []
+            #     hist_dist = []
+            #     config_hist = []
+            #     time_hist = []
             config_hist.append(config[1:])
+            time_ = time.time() - t0
+            time_hist.append(time_)
 
             velocity = np.array((7,), dtype=np.float32)
 
@@ -252,9 +269,9 @@ try:
                 dt=dt,
                 hist_index=hist_index,
                 hist_dist=hist_dist,
+                ds=1e-3
             )
 
-            time_ = time.time() - t0
             kinova.add_ani_frame(time=time_, q=config[1:])
             target.add_ani_frame(time=time_, initial_ind=0, final_ind=len(curve) - 1)
             # velocity = config_mapping(qd.ravel(), maptype="to_kinova").ravel()
@@ -267,20 +284,22 @@ try:
             current_config[0] = 0
             i += 1
         else:
-            print("Waiting for current_config")
-            print(current_config)
+            pass
+            # print("Waiting for current_config")
+            # print(current_config)
         # time.sleep(0.1)
 
 except KeyboardInterrupt:
     print("Shutting down control.py")
+    sim.save("./", "real_exp_test2")
+    with open('data.pkl', 'wb') as f:
+        data = {'config_hist': config_hist, 'hist_index': hist_index, 'hist_dist': hist_dist, 'hist_time': time_hist}
+        pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
+    print("saved pickled data")
     # shm_current.close()
     # shm_velocity.close()
 
 finally:
     # Clean up shared memory
-    sim.save("./", "real_exp_test2")
-    with open('data.pkl', 'wb') as f:
-        data = {'config_hist': config_hist, 'hist_index': hist_index, 'hist_dist': hist_dist}
-        pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
     shm_current.close()
     shm_velocity.close()

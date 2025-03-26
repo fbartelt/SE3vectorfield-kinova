@@ -123,35 +123,6 @@ def send_velocity(base, velocity):
 
     return True
 
-
-# Attach to shared memory for current_config
-try:
-    shm_current = shared_memory.SharedMemory(
-        name="current_config", create=True, size=32
-    )  # 8 elements * 4 bytes (float32)
-except FileExistsError:
-    shm_current = shared_memory.SharedMemory(name="current_config")
-
-# Attach to shared memory for config_velocity
-try:
-    shm_velocity = shared_memory.SharedMemory(
-        name="config_velocity", create=True, size=32
-    )  # 8 elements * 4 bytes (float32)
-except FileExistsError:
-    shm_velocity = shared_memory.SharedMemory(name="config_velocity")
-
-# Create numpy arrays backed by shared memory
-current_config = np.ndarray(
-    (8,), dtype=np.float32, buffer=shm_current.buf
-)  # 1 flag + 7 data elements
-config_velocity = np.ndarray(
-    (8,), dtype=np.float32, buffer=shm_velocity.buf
-)  # 1 flag + 7 data elements
-
-# Initialize shared memory arrays
-current_config[:] = 0  # Set all elements (flag and data) to 0
-config_velocity[:] = 0  # Set all elements (flag and data) to 0
-
 config_hist = []
 time_hist = []
 
@@ -185,50 +156,34 @@ if __name__ == "__main__":
     send_home(base_client_service)
     print("Going to almost upwards")
     # change_configuration(base_client_service, np.array([0, 0, 0, 5, 0, 10, 0]))
-    change_configuration(base_client_service, np.array([0, 10, 0, 15, 0, 40, 30]))
-    # change_configuration(base_client_service, np.array([0, 10, 0, 15, 0, 40., 180.72]))
-    # change_configuration(base_client_service, np.array([0, 10, 0, 15, 0, 40., 180.72]))
+    change_configuration(base_client_service, np.array([0., 0., 0., 0., 0., 0., 0.]))
+    speeds = [5, 0, -5, 0, -5, 0, 5, 0]
+
     time.sleep(5)
     try:
         t0 = time.time()
-        while True:
-            aux_config = get_current_config(base_client_service)
-            config_hist.append(aux_config)
-            time_hist.append(time.time() - t0)
-            # Get current config:
-            # if current_config[0] == 0:
-            if True:
-                new_config = get_current_config(base_client_service)
-                # current_config[:] = np.array([1, 2, 3, 4, 5], dtype=np.float32)
-                current_config[1:] = new_config
-                current_config[0] = 1
-                print(f"Sent current_config: {current_config}")
-
-            # if config_velocity[0] == 1:
-            if True:
+        for joint in range(7):
+            for speed in speeds:
+                velocity = np.zeros((7,))
+                velocity[joint] = speed
+            
                 # Read config_velocity from shared memory
-                velocity = config_velocity.copy()
                 print(f"Received config_velocity: {velocity}")
                 # success = change_configuration(base_client_service, velocity[1:])
-                success = send_velocity(base_client_service, velocity[1:])
+                success = send_velocity(base_client_service, velocity)
                 if not success:
                     print("Failed to change configuration")
                     break
-                config_velocity[0] = 0
-            else:
-                pass
-                # print(f"Waiting velocity, current: {config_velocity}")
-
+                
+                time.sleep(5)
+                time_hist.append(time.time() - t0)
+                aux_config = get_current_config(base_client_service)
+                config_hist.append(aux_config)
             # time.sleep(0.1)
 
     except KeyboardInterrupt:
         print("Shutting down experiment.py")
         send_home(base_client_service)
-
-        np.save('config_hist_exp.npy', np.array(config_hist))
-        print("Saved config hist")
-        np.save('time_hist_exp.npy', np.array(time_hist))
-        print("Saved time hist")
 
         print("Closing Session..")
         session_manager.CloseSession()
@@ -236,20 +191,19 @@ if __name__ == "__main__":
         transport.disconnect()
         print("Done!")
 
-        shm_current.close()
-        shm_velocity.close()
+        # shm_current.close()
+        # shm_velocity.close()
 
     finally:
         # Clean up shared memory
 
-        send_home(base_client_service)
-        # with open('./config_data.pkl', 'wb') as f:
-        #     data = {'config_hist': config_hist, 'time_hist': time_hist}
-        #     pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
         print ("Stopping the robot")
         base_client_service.Stop()
-        shm_current.close()
-        shm_velocity.close()
+        np.save('tests_config.npy', np.array(config_hist))
+        np.save('tests_time.npy', np.array(time_hist))
+        send_home(base_client_service)
+        # shm_current.close()
+        # shm_velocity.close()
 
         print("Closing Session..")
         session_manager.CloseSession()

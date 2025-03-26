@@ -22,18 +22,30 @@ def get_points_from_curve(curve):
         points.append(np.array(H[:3, -1]))
     return np.array(points).T
 
-with open('config_data.pkl', 'rb') as f:
-    data = pickle.load(f)
+# q_ = [q.astype(float) for q in data['config_hist']]
+# with open('mapped_data.pkl', 'wb') as f:
+#     data = {'config_hist':q_, 'time_hist': data['time_hist']}
+#     pickle.dump(data, f)
+# f_type = 'config' # config
+# with open(f'{f_type}_data.pkl', 'rb') as f:
+#     data = pickle.load(f)
 
-config_hist = data['config_hist']
-time_hist = data['time_hist']
+# config_hist = data['config_hist']
+# time_hist = data['time_hist']
+
+config_hist = np.load('config_hist_exp.npy')
+time_hist = np.load('time_hist_exp.npy')
 
 curve = np.load('resampled_curve.npy', allow_pickle=True)
+print("creating kinova")
 kinova = Robot.create_kinova_gen3(name="kinova")
+print("kinova created")
 point_mat = get_points_from_curve(curve)
 target = PointCloud(name="target", points=point_mat, size=0.01, color="cyan")
 
 kinova.set_ani_frame(q=config_mapping([0, 0, 0, 5, 0, 10, 0], "from_kinova"))
+kinova.set_ani_frame(q=config_mapping([0, 10, 0, 15, 0, 40., 180.72], "from_kinova"))
+
 sim = Simulation.create_sim_grid([kinova, target])
 
 frames = []
@@ -46,6 +58,7 @@ frame_htms = frame_htms_[:-10]
 frame_htms.append(frame_htms_[-8])
 frame_htms.append(frame_htms_[-5])
 
+print("frames")
 for i, htm in enumerate(frame_htms):
     frame = Frame(htm, name=f"frame_{i}", size=0.1)
     frames.append(frame)
