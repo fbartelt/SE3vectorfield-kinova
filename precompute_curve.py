@@ -147,8 +147,8 @@ def resample_curve(curve, epsilon):
 
 
 kinova = Robot.create_kinova_gen3(htm=np.eye(4), name="kinova")
-# n_points = 2000
-n_points = 50000
+n_points = 5000
+# n_points = 50000
 radius = 0.15
 dx = 0.0
 dy = 0.4
@@ -166,13 +166,12 @@ curve_q = circle_rn(
 )
 curve = [np.array(kinova.fkm(q=q)) for q in curve_q]
 
-resampled_curve = resample_curve(curve, 0.008)
-print(len(curve), len(resampled_curve))
-curve = np.array(resampled_curve)
+# resampled_curve = resample_curve(curve, 0.008)
+# print(len(curve), len(resampled_curve))
+# curve = np.array(resampled_curve)
+curve = np.array(curve)
 
-# file_name = "resampled_curve.npy"
-# print("Current path:", os.getcwd())
-# print(f"Saved resampled curve as '{file_name}'")
-# np.save(file_name, curve)
-
-# %%
+file_name = "resampled_curve2.npy"
+print("Current path:", os.getcwd())
+print(f"Saved resampled curve as '{file_name}'")
+np.save(file_name, curve)

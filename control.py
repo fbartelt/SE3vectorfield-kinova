@@ -202,7 +202,7 @@ try:
     # curve = [np.array(kinova.fkm(q=q)) for q in curve_q]
 
     print("Loading curve from .npy")
-    curve_ = np.load("/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve.npy")
+    curve_ = np.load("/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve2.npy")
     curve = [H for H in curve_]
     point_mat = get_points_from_curve(curve)
     target = PointCloud(name="target", points=point_mat, size=0.01, color="cyan")
@@ -214,10 +214,10 @@ try:
     print("!! Ready !!")
     # kt1, kt2, kt3 = 0.03, 0.5, 1.0
     # kn1, kn2 = 0.02, 20.0
-    kt1, kt2, kt3 = 0.03, 1.0, 1.0
-    # 0.03
-    kn1, kn2 = 0.08, 1.0
-    # 0.08
+    kt1, kt2, kt3 = 0.07, 1.0, 0.75
+    # 0.03, 0.01
+    kn1, kn2 = 0.1, 0.75
+    # 0.08, 0.08
     dt = 0.01
     i = 1
     set_time = True

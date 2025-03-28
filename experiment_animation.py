@@ -36,7 +36,8 @@ def get_points_from_curve(curve):
 config_hist = np.load('config_hist_exp.npy')
 time_hist = np.load('time_hist_exp.npy')
 
-curve = np.load('resampled_curve.npy', allow_pickle=True)
+curve_file = 'resampled_curve2'
+curve = np.load(f'{curve_file}.npy', allow_pickle=True)
 print("creating kinova")
 kinova = Robot.create_kinova_gen3(name="kinova")
 print("kinova created")

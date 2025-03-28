@@ -15,7 +15,7 @@ hist_time = data["hist_time"]
 
 kinova = Robot.create_kinova_gen3(name="kinova")
 
-curve = np.load('/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve.npy')
+curve = np.load('/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve2.npy')
 
 ori_errs = []
 pos_errs = []
@@ -41,7 +41,7 @@ for i, q in enumerate(config_hist[:-1]):
 # makes a figure with two plots, one above another. First the position error, then the orientation error
 dt = 0.01
 # time_vec = np.arange(0, len(pos_errs) * dt, dt)
-# time_vec = np.arange(0, len(pos_errs))
+time_vec = np.arange(0, len(pos_errs))
 time_vec = hist_time
 fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02)
 fig.add_trace(go.Scatter(x=time_vec, y=hist_dist, showlegend=False, line=dict(width=3)), row=1, col=1)

@@ -22,11 +22,13 @@ def get_points_from_curve(curve):
         points.append(np.array(H[:3, -1]))
     return np.array(points).T
 
-curve = np.load('/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve.npy', allow_pickle=True)
+# file_name = 'resampled_curve.npy'
+file_name = 'resampled_curve2.npy'
+curve = np.load(f'/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/{file_name}', allow_pickle=True)
 # curve = [H for H in curve_]
 #%%
 """ EXPERIMENT EXPECTED MOVEMENT """
-print("creaqting kinova")
+print("creating kinova")
 kinova = Robot.create_kinova_gen3(name="kinova")
 print("created")
 point_mat = get_points_from_curve(curve)
@@ -54,8 +56,8 @@ for i, htm in enumerate(frame_htms):
 
 sim.add(frames)
 
-kt1, kt2, kt3 = 0.03, 1.0, 1.0
-kn1, kn2 = 0.1, 1.0
+kt1, kt2, kt3 = 0.03, 1.0, 0.75
+kn1, kn2 = 0.1, 0.75
 
 q0 = np.array(kinova.q.copy())
 q = q0
