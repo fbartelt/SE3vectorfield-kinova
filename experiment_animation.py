@@ -1,7 +1,7 @@
 #%%
 import pickle
 import numpy as np
-from uaibot import Robot, Utils, Simulation, PointCloud, Frame
+from uaibot import Robot, Utils, Simulation, PointCloud, Frame, PointLight
 from scipy.interpolate import interp1d
 
 def config_mapping(q, maptype="from_kinova"):
@@ -41,15 +41,15 @@ time_hist = np.load('time_hist_exp.npy')
 curve_file = 'resampled_curve2'
 curve = np.load(f'{curve_file}.npy', allow_pickle=True)
 print("creating kinova")
-kinova = Robot.create_kinova_gen3(name="kinova")
+kinova = Robot.create_kinova_gen3(name="kinova", color='#c7c5bf')
 print("kinova created")
 point_mat = get_points_from_curve(curve)
-target = PointCloud(name="target", points=point_mat, size=0.01, color="cyan")
+target = PointCloud(name="target", points=point_mat, size=5, color="cyan")
 
 # kinova.set_ani_frame(q=config_mapping([0, 0, 0, 5, 0, 10, 0], "from_kinova"))
 kinova.set_ani_frame(q=config_mapping([0, 10, 0, 15, 0, 40, 30], "from_kinova"))
 
-sim = Simulation.create_sim_grid([kinova, target])
+sim = Simulation.create_sim_grid_old([kinova, target])
 
 frames = []
 n_frames = 20
@@ -67,7 +67,14 @@ for i, htm in enumerate(frame_htms):
     frames.append(frame)
 del frames[1]
 sim.add(frames)
-# sim.set_parameters(ambient_light_intensity=0.01)
+
+light1 = PointLight(name="light1", color="#d6d5d2", intensity=4, htm=Utils.trn([-1.5,-1.5, 2.0]))
+light2 = PointLight(name="light2", color="#d6d5d2", intensity=4, htm=Utils.trn([-1.5, 1.5, 2.0]))
+light3 = PointLight(name="light3", color="#d6d5d2", intensity=4, htm=Utils.trn([ 1.5,-1.5, 2.0]))
+light4 = PointLight(name="light4", color="#d6d5d2", intensity=4, htm=Utils.trn([ 1.5, 1.5, 2.0]))
+light5 = PointLight(name="light5", color="#d6d5d2", intensity=6, htm=Utils.trn([ 0,0,5]))
+sim.add([light1, light2, light3, light4, light5])
+sim.set_parameters(background_color='white', ambient_light_intensity=2)
 sim.run()
 #%%
 # # Interpolate configurations for smoother movement:
@@ -108,7 +115,7 @@ t_upsampled = np.array(t_upsampled)
 # config_upsampled = f_interp(t_upsampled).T
 
 # final_index = np.nonzero(np.array(time_hist) > 180)[0][0]
-final_index = np.nonzero(np.array(t_upsampled) > 180)[0][0]
+final_index = np.nonzero(np.array(t_upsampled) > 150)[0][0]
 # for i, q_ in enumerate(config_hist[:final_index]):
 for i, q_ in enumerate(config_upsampled[:final_index]):
     # q_rad = config_mapping(q_, "from_kinova")
@@ -117,6 +124,6 @@ for i, q_ in enumerate(config_upsampled[:final_index]):
     kinova.add_ani_frame(time=t_upsampled[i], q=q_)
     target.add_ani_frame(time=t_upsampled[i], initial_ind=0, final_ind=len(curve) - 1)
 sim.set_parameters(width=1480, height=960)
-sim.save('./', 'real_exp')
+sim.save('./', 'real_exp_automatica')
 
 # %%

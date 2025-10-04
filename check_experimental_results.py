@@ -43,7 +43,7 @@ dt = 0.01
 # time_vec = np.arange(0, len(pos_errs) * dt, dt)
 # time_vec = np.arange(0, len(pos_errs))
 
-final_index = np.nonzero(np.array(hist_time) > 150)[0][0]
+final_index = np.nonzero(np.array(hist_time) > 170.845)[0][0]
 init_index = np.nonzero(np.array(hist_dist) > 0.3961)[0][0]
 time_vec = np.array(hist_time[init_index:final_index]) - hist_time[init_index]
 hist_dist = hist_dist[init_index:final_index]
@@ -62,10 +62,12 @@ fig.update_yaxes(title_text="Ori. error (deg)", gridcolor='gray', zerolinecolor=
 fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
 
 # fig.update_layout(plot_bgcolor='white', paper_bgcolor='white',
-#                   width=718.110, height=605.9155)
+                #   width=718.110, height=605.9155)
 fig.update_layout(plot_bgcolor='white', paper_bgcolor='white',
-                  width=800, height=600)
-# fig.show()
+                  width=718.110, height=450)
+# fig.update_layout(plot_bgcolor='white', paper_bgcolor='white',
+#                   width=800, height=600)
+fig.show()
 # %%
 """CREATE ANIMATION"""
 def animate_distance(distances, pos_errors, ori_errors, time_data, fig=None):
