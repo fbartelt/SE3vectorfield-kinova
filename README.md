@@ -1,110 +1,66 @@
 # Kinova GEN3 experiment using Vector Field strategy in SE(3)
 
-Steps for reproducing the experiment.
+## API installation
 
-## Kinova API
+Check [Kinova Kortex repository](https://github.com/Kinovarobotics/Kinova-kortex2_Gen3_G3L) for latest API Release. This will install the 2.8.0 version of the Python API.
 
-Kortex API v2.6.0 was used
-
-```bash
-# Create conda environment for Python 3.9
-conda create -n kinova python=3.9
-conda activate kinova
-
-# Install Kinova API
-git clone https://github.com/verlab/demos-verlab.github
-cd demos-verlab
-git checkout c079f4e
-cd kinova-demos
-pip install -e .
-```
-
-## Uaibot
-
-Unpublished private uaibot version was used. Requires Python 3.11.
+> For non-linux users other files are available [here](https://artifactory.kinovaapps.com/ui/native/generic-local-public/kortex/API/) 
 
 ```bash
-git clone git@github.com:fbartelt/uaibot_experimental.git
-cd uaibot_experimental
-git checkout 5750bd6
+curl --output-dir "/tmp" -O https://artifactory.kinovaapps.com/artifactory/generic-local-public/kortex/API/2.8.0/kortex_api-2.8.0.post5-py3-none-any.whl
 
-python3.11 -m venv py311
-source py311/bin/activate
-pip install .
+python -m pip install /tmp/kortex_api-2.8.0.post5-py3-none-any.whl
+python -m pip install uaibot
 ```
+
+> Note: Tested with Python 3.14 and `uaibot==1.2.7`.
 
 ## Setup
 
-Kinova robot uses TCP for communication. Configure the network:
+Initialize Kinova Gen 3 (hold button for ~3s) and connect to the robot via Ethernet cable. Run the following command to configure the robot IP address and port:
+
+> Note: you might have to change the interface name. Check with `ip link show`
 
 ```bash
-chmod +x kinova_network_setup.sh 
+chmod +x ./kinova_network_setup.sh
 ./kinova_network_setup.sh
 ```
 
-To revert network changes:
+To reverse the changes, run:
 
 ```bash
-chmod +x reset_network.sh
+chmod +x ./reset_network.sh
 ./reset_network.sh
 ```
 
-## Run
+## Run basic tests
 
-The experiment relies on two Python environments. Both scripts share data using numpy array shared memory
+This will set q0=0 and rotate each joint of the robot by 5 degrees/s and save configuration data. Finally, the robot returns to the default pose.
 
-### Precompute curve in SE(3)
-
-Generate and resample the curve for uniform distribution in SE(3). The result is saved in `resampled_curve.npy`
-
+Log files will be `tests_config.npy` and `tests_time.npy` and should contain the configuration values and timestamps of the tests.
 ```bash
-source py311/bin/activate
-py311/bin/python ./precompute_curve.py
+python ./kinova_basic_tests.py
 ```
 
-### Control
+If everything works, you should now perform the experiment by:
 
-Run the control and experiment scripts (order doesn't matter):
+## Run the experiment
 
+The kinematic control uses the Advanced Interface of BaseCyclic which has a sampling rate of 1kHz. The old script (`control_40hz.py`) runs at 40Hz only, but is safer.
+
+You should first create the curve `.npy` file using the `precompute_curve.py` script
+
+The robot will go to the configuration q=\[0, 10, 0, 15, 0, 40, 30\] and wait for 5 seconds.
 ```bash
-source py311/bin/activate
-py311/bin/python ./control.py
+python ./control.py
 ```
 
-```bash
-conda activate kinova
-python ./experiment.py
-```
+## Results
 
-## Visualization
+Expected movement can be checked agains the simulation in `expected_movement.py` script.
 
-`control.py` stores experiment data in `data.pkl`. Access it with:
+Data can be analyzed using the `check_experiment_results.py`, although it will consider only data used in the previous work.
 
-```python
-import pickle
+You can animate the experiment data using the `experiment_animation.py` script, although you it will probably need heavy modifications.
 
-with open("./data.pkl", "rb") as f:
-    data = pickle.load(f)
-
-config_hist = data["config_hist"]
-hist_index = data["hist_index"]
-hist_dist = data["hist_dist"]
-```
-
-Visualize results using `check_experimental_results.py` in the `py311` environment.
-
-## Animation
-
-`experiment.py` stores configurations and timestamps in `config_data.pkl`. Access it with:
-
-```python
-import pickle
-
-with open('config_data.pkl', 'rb') as f:
-    data = pickle.load(f)
-
-config_hist = data['config_hist']
-time_hist = data['time_hist']
-```
-
-Animations can be visualized by running the notebook cells in `experiment_animation.py` using *VS Code's IPython interactive cells* or by converting the file into a *Jupyter notebook*.
+> [Kinova Tutorials Playlist](https://youtube.com/playlist?list=PLz1XwEYRuku5rZjJWBr6SDi93jgWZ4FHL&si=zSrxxHjoIQz1Fg0k)

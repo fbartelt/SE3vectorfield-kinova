@@ -5,20 +5,24 @@ import plotly.graph_objects as go
 from uaibot import Robot
 from plotly.subplots import make_subplots
 
-with open("/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/data.pkl", "rb") as f:
+path = "./"
+data_path = f"{path}/kinova_experiment.pkl"
+with open(data_path, "rb") as f:
     data = pickle.load(f)
 
-config_hist = data["config_hist"]
+config_hist = data["hist_q"]
 hist_index = data["hist_index"]
 hist_dist = data["hist_dist"]
 hist_time = data["hist_time"]
 
 kinova = Robot.create_kinova_gen3(name="kinova")
 
-curve = np.load('/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/resampled_curve2.npy')
+curve_path = f"{path}/resampled_curve2.npy"
+curve = np.load(curve_path)
 
 ori_errs = []
 pos_errs = []
+
 for i, q in enumerate(config_hist[:-1]):
 # for i in range(np.minimum(len(config_hist), len(hist_index))):
     # q = config_hist[i]

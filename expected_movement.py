@@ -1,7 +1,25 @@
-#%%
+# %%
+import os
+import sys
 import pickle
+import webbrowser
 import numpy as np
 from uaibot import Robot, Utils, Simulation, PointCloud, Frame
+from pathlib import Path
+
+
+def open_in_browser(filename: str):
+    """
+    Opens an HTML file in the system's default web browser.
+    Works cross-platform (Linux, macOS, Windows).
+    """
+    path = Path(filename).expanduser().resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    # Convert to file:// URL and open
+    webbrowser.open_new_tab(path.as_uri())
+
 
 def config_mapping(q, maptype="from_kinova"):
     if maptype == "from_kinova":
@@ -16,17 +34,21 @@ def config_mapping(q, maptype="from_kinova"):
         q = np.array([qi % 360 for qi in q]).ravel()
     return q
 
+
 def get_points_from_curve(curve):
     points = []
     for H in curve:
         points.append(np.array(H[:3, -1]))
     return np.array(points).T
 
-# file_name = 'resampled_curve.npy'
-file_name = 'resampled_curve2.npy'
-curve = np.load(f'/home/fbartelt/Documents/Projetos/SE3vectorfield-kinova/{file_name}', allow_pickle=True)
+
+path = "./"
+file_name = f"{path}/resampled_curve2.npy"
+print(f"Loading raw curve from {file_name}...")
+
+curve = np.load(file_name, allow_pickle=True)
 # curve = [H for H in curve_]
-#%%
+# %%
 """ EXPERIMENT EXPECTED MOVEMENT """
 print("creating kinova")
 kinova = Robot.create_kinova_gen3(name="kinova")
@@ -73,7 +95,7 @@ curve = [H for H in curve]
 
 for i in range(imax):
     J, H = kinova.jac_geo()
-    H_qp = 2*(J.transpose() * J + 0.0001 *np.identity(7))
+    H_qp = 2 * (J.transpose() * J + 0.0001 * np.identity(7))
     q_ = np.array(kinova.q.copy())
     q_hist.append(q_)
     # q_[1:] = np.array([(qi + np.pi) for qi in q_.ravel()[1:]]).reshape(-1, 1)
@@ -116,41 +138,15 @@ for i in range(imax):
     # H = expSE3(Smap(xi) * dt) @ H # VECTOR FIELD TESTING
     dist_hist.append(min_dist)
 
-sim.run()
+sim.save(path, "expected_movement")
+open_in_browser('expected_movement.html')
 
-#%%
+# %%
 """ PLOT DIST """
 import plotly.graph_objects as go
 
 go.Figure(go.Scatter(y=dist_hist)).show()
-#%%
-""" CHECK QDOT"""
-qdot_hist = np.array(qdot_hist).reshape(-1, 7)
 
-for i in range(7):
-    print(f'joint {i}')
-    print(np.max(qdot_hist[:, i]) * 180/np.pi)
-    print(np.min(qdot_hist[:, i]) * 180/np.pi)
-
-# %%
-""" BASIC TESTING """
-kinova = Robot.create_kinova_gen3(name="kinova")
-kinova.set_ani_frame(q=config_mapping([0., 0., 0., 0., 0., 0., 0.], "from_kinova"))
-speeds = [5, 0, -5, 0, -5, 0, 5, 0]
-
-dt = 0.01
-i = 1
-
-for joint in range(7):
-    for speed in speeds:
-        for _ in range(500):
-            q_ = kinova.q.copy()
-            q_[joint] += (speed * np.pi / 180.0) * dt
-            kinova.add_ani_frame(time=i*dt, q=q_)
-            i += 1
-
-sim = Simulation.create_sim_grid([kinova])
-sim.run()
 # %%
 """ CHECK CURVE """
 point_mat = get_points_from_curve(curve)
@@ -178,8 +174,9 @@ frame = Frame(htm=np.eye(4), name="test_frame", size=0.1)
 sim.add(frame)
 
 for i, H in enumerate(curve):
-    target.add_ani_frame(time=i*0.01, initial_ind=0, final_ind=i)
-    frame.add_ani_frame(time=i*0.01, htm=H)
+    target.add_ani_frame(time=i * 0.01, initial_ind=0, final_ind=i)
+    frame.add_ani_frame(time=i * 0.01, htm=H)
 
-sim.run()
+sim.save("/tmp", "curve_check")
+open_in_browser(os.path.join("/tmp", "curve_check.html"))
 # %%
