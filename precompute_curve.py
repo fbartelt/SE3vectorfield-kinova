@@ -2,7 +2,7 @@
 import os
 import numpy as np
 from uaibot import Robot
-
+from pathlib import Path
 
 def cylindrical_surface(
     n_points,
@@ -50,8 +50,10 @@ def cylindrical_surface(
         center = np.array(center).ravel()
 
     curve = np.zeros((n_points, 4, 4))
+    dcurve = np.zeros((n_points, 4, 4))
     for i in range(n_points):
-        theta = 2.0 * np.pi * i / n_points + theta_offset
+        s_param = i / n_points
+        theta = 2.0 * np.pi * s_param + theta_offset
         c, s = np.cos(theta), np.sin(theta)
 
         # Position on the cylinder surface
@@ -74,7 +76,33 @@ def cylindrical_surface(
         H[:3, :3] = R
         curve[i] = H
 
-    return curve
+        # Derivative with respect to theta
+        dR_dtheta = np.array(
+            [
+                [c, 0.0, s],
+                [s, 0.0, -c],
+                [0.0, 0.0, 0.0],
+            ]
+        )
+        dp_dtheta = np.array(
+            [
+                -radius * s,
+                radius * c,
+                axial_amplitude
+                * n_axial_oscillations
+                * np.cos(n_axial_oscillations * theta),
+            ]
+        )
+
+        dH_dtheta = np.zeros((4, 4))
+        dH_dtheta[:3, :3] = dR_dtheta
+        dH_dtheta[:3, 3] = dp_dtheta
+
+        # Convert to derivative with respect to the normalized parameter s
+        # since theta = 2*pi*s + theta_offset, dtheta/ds = 2*pi
+        dcurve[i] = dH_dtheta * (2.0 * np.pi)
+
+    return curve, dcurve
 
 
 def circle_rn(n_points, u, v, radius=1.0, center=None, mid=False, dv=10.0):
@@ -193,7 +221,7 @@ radius = 0.07
 htm = np.eye(4)
 height = 2.0 * axial_amplitude + 0.05
 n_points = 5000
-curve = cylindrical_surface(
+curve, dcurve = cylindrical_surface(
     n_points=n_points,
     radius=radius,
     axial_amplitude=axial_amplitude,
@@ -213,10 +241,17 @@ curve = cylindrical_surface(
 #                               SAVE CURVE
 # ----------------------------------------------------------------------
 
-file_name = "cylindrical.npy"
-print("Current path:", os.getcwd())
-print(f"Saved resampled curve as '{file_name}'")
-np.save(file_name, curve)
+data_folder = "./data"
+curve_file_name = "cylindrical.npy"
+dcurve_file_name = "cylindrical_derivative.npy"
+directory = Path(data_folder)
+directory.mkdir(parents=True, exist_ok=True)
+curve_path = os.path.join(data_folder, curve_file_name)
+dcurve_path = os.path.join(data_folder, dcurve_file_name)
+np.save(curve_path, curve)
+print(f"Saved resampled curve at '{curve_path}'")
+np.save(dcurve_path, dcurve)
+print(f"Saved resampled curve at '{dcurve_path}'")
 
 # ----------------------------------------------------------------------
 #                               VISUALIZE CURVE
