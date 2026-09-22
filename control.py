@@ -10,7 +10,7 @@ import time
 import argparse
 import threading
 import pickle
-from uaibot import Robot, Utils
+from uaibot import Robot, Utils, Cylinder
 
 from kortex_api.autogen.client_stubs.BaseClientRpc import BaseClient
 from kortex_api.autogen.client_stubs.ActuatorConfigClientRpc import ActuatorConfigClient
@@ -30,41 +30,6 @@ import utilities
 """
 THIS SCRIPT USES THE ADVANCED FUNCTIONS FOR 1KHZ CONTROL
 """
-# =========================================================================
-# qdot limits (from manual) in deg/s
-QDOT_UPPER_BOUND = np.array([79.64, 79.64, 79.64, 79.64, 69.91, 69.91, 69.91]).reshape(
-    -1, 1
-)
-QDOT_LOWER_BOUND = -QDOT_UPPER_BOUND
-# q limits (from manual) in rad
-Q_UPPER_BOUND = np.array(
-    [
-        np.inf,
-        np.deg2rad(128.9),
-        np.inf,
-        np.deg2rad(147.8),
-        np.inf,
-        np.deg2rad(120.3),
-        np.inf,
-    ]
-).reshape(-1, 1)
-Q_LOWER_BOUND = -Q_UPPER_BOUND
-# Defaults
-DEFAULT_CYCLIC_SAMPLING_TIME = 0.001
-DEFAULT_MAX_EXPERIMENT_TIME = 60 * 3  # SECONDS
-DEFAULT_PRINT_STATS = 1
-DEFAULT_ACTION_TIMEOUT_DURATION = 60  # seconds (time to assume communication failed)
-# VECTOR FIELD GAINS
-# kn = kn1 * tanh(kn2 * sqrt(D))
-# kt = kt1 * (1 - kt2 * tanh(kn3 * sqrt(D))
-kt1, kt2, kt3 = 0.07, 1.0, 0.75
-kn1, kn2 = 0.1, kt3
-ds, delta = 1e-3, 1e-3
-# PATHS
-file_parent_path = os.path.dirname(__file__)
-curve_path = f"{file_parent_path}/resampled_curve2.npy"
-save_path = f"{file_parent_path}/kinova_experiment.pkl"
-print_interval = 1  # second
 
 
 def progress_bar(i, imax, bar_length=20, return_bar=False):
@@ -97,6 +62,101 @@ def config_mapping(q, maptype="from_kinova"):
     return q
 
 
+# ----------------------------------------------------------------------
+#                                DEFAULTS
+# ----------------------------------------------------------------------
+# qdot limits (from manual) in deg/s
+QDOT_UPPER_BOUND = np.array([79.64, 79.64, 79.64, 79.64, 69.91, 69.91, 69.91]).reshape(
+    -1, 1
+)
+QDOT_LOWER_BOUND = -QDOT_UPPER_BOUND
+# q limits (from manual) in rad
+Q_UPPER_BOUND = config_mapping(
+    np.array(
+        [
+            np.inf,
+            np.deg2rad(128.9),
+            np.inf,
+            np.deg2rad(147.8),
+            np.inf,
+            np.deg2rad(120.3),
+            np.inf,
+        ]
+    ),
+    "from_kinova",
+).reshape(-1, 1)
+Q_LOWER_BOUND = -Q_UPPER_BOUND
+
+DEFAULT_CYCLIC_SAMPLING_TIME = 0.001
+DEFAULT_MAX_EXPERIMENT_TIME = 60 * 3  # SECONDS
+DEFAULT_PRINT_STATS = 1
+DEFAULT_ACTION_TIMEOUT_DURATION = 60  # seconds (time to assume communication failed)
+INITIAL_CONFIG = np.array([0, 10, 0, 15, 0, 40, 30])  # degrees
+N_JOINTS = 7
+
+# ----------------------------------------------------------------------
+#                                VF Gains
+# ----------------------------------------------------------------------
+# kn = kn1 * tanh(kn2 * sqrt(D))
+# kt = kt1 * (1 - kt2 * tanh(kn3 * sqrt(D))
+
+# OLD PARAMS
+# kt1, kt2, kt3 = 0.07, 1.0, 0.75
+# kn1, kn2 = 0.1, kt3
+# NEW PARAMS
+kt1, kt2, kt3 = 0.1, 1.0, 0.75
+kn1, kn2 = 1.0, kt3
+# ds is used if curve_derivative is None
+# delta is used to compute normal component numerically
+# delta should be equal to the sampling time
+ds, delta = 1e-3, 1e-3
+
+# ----------------------------------------------------------------------
+#                                CYLINDER
+# ----------------------------------------------------------------------
+axial_amplitude = 0.1 / 2
+n_axial_oscillations = 3
+center = np.array([0.0, 0.25, 0.6])
+radius = 0.07
+cylinder_htm = np.eye(4)
+height = 2.0 * axial_amplitude + 0.05
+n_points = 5000
+cylinder_height = height
+cylinder_htm[:3, 3] = center
+cylinder = Cylinder(
+    htm=cylinder_htm,
+    # 90% of original radius to force D->0
+    radius=radius * 0.9,
+    height=cylinder_height,
+    opacity=0.3,
+    color="blue",
+)
+
+# ----------------------------------------------------------------------
+#                                 CBF
+# ----------------------------------------------------------------------
+eta = 10.0
+eta_lim = 1 / 1e-3
+eta_self = 0.6
+delta_collision = 0.005
+gain_qp = 1.0
+# Generalized distance
+h_gdf, eps_gdf = 2e-3, 1e-3
+
+# ----------------------------------------------------------------------
+#                                PATHS
+# ----------------------------------------------------------------------
+file_parent_path = os.path.dirname(__file__)
+data_path = os.path.join(file_parent_path, "/data")
+curve_file_name = "cylindrical.npy"
+dcurve_file_name = "cylindrical_derivative.npy"
+curve_path = os.path.join(data_path, curve_file_name)
+dcurve_path = os.path.join(data_path, dcurve_file_name)
+experiment_data_name = "kinova_experiment.pkl"
+save_path = os.path.join(data_path, experiment_data_name)
+print_interval = 1  # second
+
+
 class kinovaExperiment:
     def __init__(
         self,
@@ -116,6 +176,7 @@ class kinovaExperiment:
         qdot_ub=QDOT_UPPER_BOUND,
         q_lb=Q_LOWER_BOUND,
         q_ub=Q_UPPER_BOUND,
+        q0=INITIAL_CONFIG,
     ):
 
         # Maximum allowed waiting time during actions (in seconds)
@@ -180,6 +241,9 @@ class kinovaExperiment:
         self.hist_closest_index = []  # accumulates i* (closest point index)
         self.qdot_lb = qdot_lb
         self.qdot_ub = qdot_ub
+        self.q_lb = q_lb
+        self.q_ub = q_ub
+        self.q0 = q0
         # ====================================================================
 
     # Create closure to set an event after an END or an ABORT
@@ -263,9 +327,7 @@ class kinovaExperiment:
                     x
                 ].position
                 # Add velocities too
-                self.base_command.actuators[x].velocity = self.base_feedback.actuators[
-                    x
-                ].velocity
+                self.base_command.actuators[x].velocity = 0.0
 
             # Set arm in LOW_LEVEL_SERVOING
             base_servo_mode = Base_pb2.ServoingModeInformation()
@@ -279,13 +341,15 @@ class kinovaExperiment:
 
             # Set actuators in velocity mode now that the command is equal to measure
             control_mode_message = ActuatorConfig_pb2.ControlModeInformation()
+            # Use position control with euler method to achieve velocity control
+            # Velocity control is kinda bugged right now
             control_mode_message.control_mode = ActuatorConfig_pb2.ControlMode.Value(
-                "VELOCITY"
+                "POSITION"
             )
 
             # Set every joint to receive velocity commands
             # first actuator as id = 1
-            for device_id in range(self.actuator_count):
+            for device_id in range(1, self.actuator_count + 1):
                 self.SendCallWithRetry(
                     self.actuator_config.SetControlMode,
                     3,
@@ -317,7 +381,7 @@ class kinovaExperiment:
         failed_cyclic_count = 0  # Count communication timeouts
 
         # Initial first and last actuator torques; avoids unexpected movement due to torque offsets
-        q, qdot = np.zeros((self.actuator_count, 1))
+        q, qdot = np.zeros((self.actuator_count, 1)), np.zeros((self.actuator_count, 1))
         for i in range(self.actuator_count):
             q[i] = self.base_feedback.actuators[i].position
             qdot[i] = self.base_feedback.actuators[i].velocity
@@ -325,9 +389,9 @@ class kinovaExperiment:
         # =============================================================
         # =================== EDIT HERE IF NECESSARY ==================
         q_rad = config_mapping(q, "from_kinova")
-        self.robot.set_ani_frame()
-        self.hist_q.append(q_rad)
-        self.hist_qdot.append(qdot)
+        self.robot.set_ani_frame(q=config_mapping(INITIAL_CONFIG, "from_kinova"))
+        self.hist_q.append(q.copy())
+        self.hist_qdot.append(qdot.copy())
         self.hist_time.append(0.0)
         self.hist_dist.append(0.0)
         self.hist_closest_index.append(0)
@@ -358,19 +422,17 @@ class kinovaExperiment:
                 qdot_d, vfdata, log_msg = self.control_step(
                     q_rad, current_time=curr_time, final_time=self.cyclic_t_end
                 )
-                if any(q_rad >= self.q_ub or q_rad <= self.q_lb):
-                    print(f"JOINT LIMIT VIOLATION: {q.ravel()} (deg)")
-                    self.kill_the_thread = True
-                    break
+                # if np.any(q_rad > self.q_ub) or np.any(q_rad < self.q_lb):
+                #     print(f"JOINT LIMIT VIOLATION: {q.ravel()} (rad)")
+                #     self.kill_the_thread = True
+                #     break
                 # vfdata is (distance, closest_index)
                 # qdot is in deg/s
                 # =============================================================
 
                 for i in range(self.actuator_count):
-                    self.base_command.actuators[i].velocity = qdot_d[i].item()
-                    # Apparentely this prevents some errors (REMOVE IF BUG)
-                    self.base_command.actuators[i].position = (
-                        self.base_feedback.actuators[i].position
+                    self.base_command.actuators[i].position += (
+                        qdot_d[i].item() * t_sample
                     )
 
                 # Incrementing identifier ensure actuators can reject out of time frames
@@ -393,8 +455,8 @@ class kinovaExperiment:
 
                 # =============================================================
                 # =================== EDIT HERE IF NECESSARY ==================
-                self.hist_q.append(q_rad)
-                self.hist_qdot.append(qdot)
+                self.hist_q.append(q_rad.copy())
+                self.hist_qdot.append(qdot.copy())
                 self.hist_time.append(curr_time)
                 self.hist_dist.append(vfdata[0])
                 self.hist_closest_index.append(vfdata[1])
@@ -433,7 +495,7 @@ class kinovaExperiment:
             "POSITION"
         )
         # device_id = 1  # first actuator has id = 1
-        for device_id in range(self.actuator_count):
+        for device_id in range(1, self.actuator_count + 1):
             self.SendCallWithRetry(
                 self.actuator_config.SetControlMode, 3, control_mode_message, device_id
             )
@@ -451,6 +513,7 @@ class kinovaExperiment:
     # ================================ EDIT HERE ==============================
     def control_step(self, q, current_time, final_time):
         J, H = self.robot.jac_geo(q=q)
+        J, H = np.array(J), np.array(H)
         t0 = time.perf_counter()
 
         xi, min_dist, closest_index = self.robot.vector_field_se3(
@@ -461,7 +524,7 @@ class kinovaExperiment:
             kt3=self.kt3,
             kn1=self.kn1,
             kn2=self.kn2,
-            # curve_derivative=curve_derivative,
+            curve_derivative=self.curve_derivative,
             delta=self.delta,
             ds=self.ds,
             mode="c++",
@@ -470,15 +533,44 @@ class kinovaExperiment:
         t1 = time.perf_counter()
         solver_time_ms = (t1 - t0) * 1000.0
 
-        # xi = np.array(xi).ravel()
         p = np.array(H[:3, -1]).reshape(-1, 1)
         omega = np.array(xi[3:]).reshape(-1, 1)
         v = np.array(xi[:3]).reshape(-1, 1)
         pdot = (np.cross(omega.ravel(), p.ravel()) + v.ravel()).reshape(-1, 1)
         twist_ = np.vstack((pdot, omega))
 
-        qdot = Utils.dp_inv(J, 1e-4) @ twist_
+        # ------------------------------------------------------------------
+        #                        DAMPED PSEUDOINVERSE
+        # ------------------------------------------------------------------
+        # qdot = Utils.dp_inv(J, 1e-4) @ twist_
+        # qdot = np.array(qdot).reshape(-1, 1)
+
+        # ------------------------------------------------------------------
+        #                           QP with CBF
+        # ------------------------------------------------------------------
+        H_qp = 2 * (J.transpose() @ J + 1e-4 * np.identity(7))
+        f_qp = -2 * gain_qp * np.array(J.T @ twist_).reshape(-1)
+        dist_struct = self.robot.compute_dist(obj=cylinder, h=h_gdf, eps=eps_gdf)
+        dist_struct_auto = self.robot.compute_dist_auto(h=h_gdf, eps=eps_gdf)
+        A_qp_env = dist_struct.jac_dist_mat
+        A_qp_self = dist_struct_auto.jac_dist_mat
+        A_lim = np.vstack([np.eye(N_JOINTS), -np.eye(N_JOINTS)])
+        A_qp = np.vstack([A_qp_env, A_qp_self, A_lim])
+        b_qp_env = -eta * (dist_struct.dist_vect - delta_collision)
+        b_qp_self = -eta_self * (dist_struct_auto.dist_vect - delta_collision)
+        b_lim = np.vstack(
+            [
+                -eta_lim * (q - self.q_lb),  # lower
+                -eta_lim * (self.q_ub - q),  # upper
+            ]
+        )
+        b_qp = np.vstack([b_qp_env, b_qp_self, b_lim])
+        # min 0.5u^T H u + f^T u, s.t. Au >= b
+        qdot = Utils.solve_qp(
+            np.matrix(H_qp), np.matrix(f_qp).T, np.matrix(A_qp), np.matrix(b_qp)
+        )
         qdot = np.array(qdot).reshape(-1, 1)
+
         # Kinova commands are in deg / s
         qdot_deg = qdot * 180 / np.pi
         qdot_deg = np.clip(qdot_deg, self.qdot_lb, self.qdot_ub)
@@ -551,13 +643,15 @@ def main():
         with utilities.DeviceConnection.createUdpConnection(args) as router_real_time:
 
             print(f"Loading curve from {curve_path}")
-            curve_raw = np.load(curve_path, allow_pickle=True)
-            curve = [H for H in curve_raw]
+            curve = np.load(curve_path, allow_pickle=True)
+            # curve = [H for H in curve_raw]
+            dcurve = np.load(dcurve_path, allow_pickle=True)
 
             kinova_exp = kinovaExperiment(
                 router,
                 router_real_time,
                 curve=curve,
+                curve_derivative=dcurve,
                 kn1=kn1,
                 kn2=kn2,
                 kt1=kt1,
