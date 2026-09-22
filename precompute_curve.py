@@ -4,6 +4,79 @@ import numpy as np
 from uaibot import Robot
 
 
+def cylindrical_surface(
+    n_points,
+    radius=0.15,
+    axial_amplitude=0.1,
+    n_axial_oscillations=2,
+    center=None,
+    theta_offset=0.0,
+):
+    """
+    Generate a closed SE(3) curve on a cylindrical surface for path following.
+
+    The end-effector position wraps once around the cylinder while oscillating
+    along the cylinder axis, covering a band of the surface without
+    self-intersection. The orientation is chosen so that the tool z-axis
+    points radially inward (normal to the surface), which is the natural
+    configuration for inspection, welding, or painting tasks on pipes,
+    tanks, or fuselage sections.
+
+    Parameters
+    ----------
+    n_points : int
+        Number of sampled points along the curve.
+    radius : float
+        Radius of the cylinder.
+    axial_amplitude : float
+        Amplitude of the axial oscillation (half of the band height).
+    n_axial_oscillations : int
+        Number of axial oscillations per full revolution. Must be a
+        positive integer so that the curve closes smoothly.
+    center : array-like, optional
+        Center of the cylinder in world frame. Defaults to the origin.
+    theta_offset : float
+        Angular offset in radians (rotation of the whole path around the
+        cylinder axis). Defaults to 0.
+
+    Returns
+    -------
+    curve : np.ndarray of shape (n_points, 4, 4)
+        Array of homogeneous transformation matrices in SE(3).
+    """
+    if center is None:
+        center = np.zeros(3)
+    else:
+        center = np.array(center).ravel()
+
+    curve = np.zeros((n_points, 4, 4))
+    for i in range(n_points):
+        theta = 2.0 * np.pi * i / n_points + theta_offset
+        c, s = np.cos(theta), np.sin(theta)
+
+        # Position on the cylinder surface
+        H = np.eye(4)
+        H[0, 3] = center[0] + radius * c
+        H[1, 3] = center[1] + radius * s
+        H[2, 3] = center[2] + axial_amplitude * np.sin(n_axial_oscillations * theta)
+
+        # Orientation: tool z-axis points radially inward (normal to surface)
+        # x_T: tangent to the circle (opposite traversal direction so frame stays right-handed)
+        # y_T: world +z direction (pointing up)
+        # z_T: inward radial direction (normal to the surface)
+        R = np.array(
+            [
+                [s, 0.0, -c],
+                [-c, 0.0, -s],
+                [0.0, 1.0, 0.0],
+            ]
+        )
+        H[:3, :3] = R
+        curve[i] = H
+
+    return curve
+
+
 def circle_rn(n_points, u, v, radius=1.0, center=None, mid=False, dv=10.0):
     points = []
     n = u.shape[0]
@@ -34,66 +107,6 @@ def circle_rn(n_points, u, v, radius=1.0, center=None, mid=False, dv=10.0):
 
     points = np.array(points)
     return points
-
-
-def get_points_from_curve(curve):
-    points = []
-    for H in curve:
-        points.append(np.array(H[:3, -1]))
-    return np.array(points).T
-
-
-def config_mapping(q, maptype="from_kinova"):
-    if maptype == "from_kinova":
-        q = np.deg2rad(np.array(q).ravel())
-        delta = np.array([0] + [np.pi] * 6).ravel()
-        q = q + delta
-    else:
-        # maptype == 'to_kinova'
-        q = np.rad2deg(np.array(q).ravel())
-        delta = np.array([0] + [180] * 6).ravel()
-        q = q - delta
-        q = np.array([qi % 360 for qi in q]).ravel()
-    return q
-
-
-def Smap(xi):
-    S_ = np.eye(4)
-    S_[0, 1] = -xi[5]
-    S_[0, 2] = xi[4]
-    S_[1, 2] = -xi[3]
-    S_ = S_ - S_.T
-    S_[0, 3] = xi[0]
-    S_[1, 3] = xi[1]
-    S_[2, 3] = xi[2]
-    return S_
-
-
-def expSE3(A):
-    S_ = A[:3, :3]
-    v = A[:3, 3]
-    res = np.eye(4)
-    theta = np.sqrt(S_[1, 0] ** 2 + S_[0, 2] ** 2 + S_[2, 1] ** 2)
-
-    if theta < 1e-6:
-        R = np.eye(3)
-        res[:3, :3] = R
-        res[:3, 3] = v
-    else:
-        R = (
-            np.eye(3)
-            + np.sin(theta) / theta * S_
-            + ((1 - np.cos(theta)) / (theta**2) * S_ @ S_)
-        )
-        U = (
-            np.eye(3)
-            + ((1 - np.cos(theta)) / (theta**2)) * S_
-            + (((theta - np.sin(theta)) / (theta**3)) * S_ @ S_)
-        )
-        res[:3, :3] = R
-        res[:3, 3] = U @ v
-
-    return res
 
 
 def EE_dist(V, W):
@@ -148,30 +161,75 @@ def resample_curve(curve, epsilon):
 
 kinova = Robot.create_kinova_gen3(htm=np.eye(4), name="kinova")
 n_points = 5000
-# n_points = 50000
 radius = 0.15
-dx = 0.0
-dy = 0.4
-height = 0.4
 
-u = np.array(list(map(int, [(i % 2) == 0 for i in range(7)])))
-v = np.logical_not(u).astype(int)
-u = u / np.linalg.norm(u)
-v = v / np.linalg.norm(v)
-center = np.array([0] + [np.pi] * 6)
-radius = np.array([np.pi, np.deg2rad(50)])  # mid=False
-radius = np.array([np.deg2rad(180), np.deg2rad(50)])  # mid=True, dv=5.0
-curve_q = circle_rn(
-    n_points=n_points, u=u, v=v, radius=radius, center=center, mid=True, dv=5.0
+# ----------------------------------------------------------------------
+#                                CIRCLE
+# ----------------------------------------------------------------------
+
+# dx = 0.0
+# dy = 0.4
+# height = 0.4
+# u = np.array(list(map(int, [(i % 2) == 0 for i in range(7)])))
+# v = np.logical_not(u).astype(int)
+# u = u / np.linalg.norm(u)
+# v = v / np.linalg.norm(v)
+# center = np.array([0] + [np.pi] * 6)
+# radius = np.array([np.pi, np.deg2rad(50)])  # mid=False
+# radius = np.array([np.deg2rad(180), np.deg2rad(50)])  # mid=True, dv=5.0
+# curve_q = circle_rn(
+#     n_points=n_points, u=u, v=v, radius=radius, center=center, mid=True, dv=5.0
+# )
+# curve = [np.array(kinova.fkm(q=q)) for q in curve_q]
+# curve = np.array(curve)
+
+# ----------------------------------------------------------------------
+#                          CYLINDRICAL SURFACE
+# ----------------------------------------------------------------------
+axial_amplitude = 0.1 / 2
+n_axial_oscillations = 3
+center = np.array([0.0, 0.25, 0.6])
+radius = 0.07
+htm = np.eye(4)
+height = 2.0 * axial_amplitude + 0.05
+n_points = 5000
+curve = cylindrical_surface(
+    n_points=n_points,
+    radius=radius,
+    axial_amplitude=axial_amplitude,
+    n_axial_oscillations=n_axial_oscillations,
+    center=center,
 )
-curve = [np.array(kinova.fkm(q=q)) for q in curve_q]
+
+# ----------------------------------------------------------------------
+#                               RESAMPLING
+# ----------------------------------------------------------------------
 
 # resampled_curve = resample_curve(curve, 0.008)
 # print(len(curve), len(resampled_curve))
 # curve = np.array(resampled_curve)
-curve = np.array(curve)
 
-file_name = "resampled_curve2.npy"
+# ----------------------------------------------------------------------
+#                               SAVE CURVE
+# ----------------------------------------------------------------------
+
+file_name = "cylindrical.npy"
 print("Current path:", os.getcwd())
 print(f"Saved resampled curve as '{file_name}'")
 np.save(file_name, curve)
+
+# ----------------------------------------------------------------------
+#                               VISUALIZE CURVE
+# ----------------------------------------------------------------------
+
+# import uaibot as ub
+# from uaibot.simobjects.curve import CurveSE3
+# from uaibot.simobjects.cylinder import Cylinder
+#
+# curve_ub = CurveSE3(points=curve)
+# htm = np.eye(4)
+# htm[:3, 3] = center
+# height = 2.0 * axial_amplitude + 0.05
+# cylinder_reference = Cylinder(htm=htm, radius=radius, height=height)
+# sim = ub.Simulation([curve_ub, cylinder_reference])
+# sim.run_in_browser()
