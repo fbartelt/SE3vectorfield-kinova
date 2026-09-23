@@ -239,6 +239,7 @@ class kinovaExperiment:
         self.hist_time = []  # accumulates t_now - t_initi
         self.hist_dist = []  # accumulates distance to closest point
         self.hist_closest_index = []  # accumulates i* (closest point index)
+        self.hist_time_vf = [] # time spent computing VF
         self.qdot_lb = qdot_lb
         self.qdot_ub = qdot_ub
         self.q_lb = q_lb
@@ -395,6 +396,7 @@ class kinovaExperiment:
         self.hist_time.append(0.0)
         self.hist_dist.append(0.0)
         self.hist_closest_index.append(0)
+        self.hist_time_vf.append(0.0)
         # =============================================================
 
         t_now = time.time()
@@ -460,6 +462,7 @@ class kinovaExperiment:
                 self.hist_time.append(curr_time)
                 self.hist_dist.append(vfdata[0])
                 self.hist_closest_index.append(vfdata[1])
+                self.hist_time_vf.append(vfdata[2])
                 # =============================================================
 
             # Stats Print
@@ -579,7 +582,7 @@ class kinovaExperiment:
         bar = progress_bar(i=current_time, imax=final_time, return_bar=True)
         log_msg = "[" + log_msg + "]" + bar
 
-        return qdot_deg, (min_dist, closest_index), log_msg
+        return qdot_deg, (min_dist, closest_index, solver_time_ms), log_msg
 
     # =========================================================================
 
@@ -608,6 +611,7 @@ def save_data(path, kinova_exp):
             "hist_index": kinova_exp.hist_closest_index,
             "hist_dist": kinova_exp.hist_dist,
             "hist_time": kinova_exp.hist_time,
+            "hist_time_vf": kinova_exp.hist_time_vf,
         }
         pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
     print("Saved pickled data.")
