@@ -46,18 +46,33 @@ If everything works, you should now perform the experiment by:
 
 ## Run the experiment
 
-The kinematic control uses the Advanced Interface of BaseCyclic which has a sampling rate of 1kHz. The old script (`control_40hz.py`) runs at 40Hz only, but is safer.
+The kinematic control uses the Advanced Interface of BaseCyclic which has a sampling rate of 1kHz.
 
-You should first create the curve `.npy` file using the `precompute_curve.py` script
+There are two possible curves you can track:
 
-The robot will go to the configuration q=\[0, 10, 0, 15, 0, 40, 30\] and wait for 5 seconds.
+- **Cylindrical surface**: The curve oscillates along the world-frame z-axis of a cylinder. The orientation frame is such that the z-axis points inward and the y-axis points in the world z-axis direction. This case requires both the curve and its analytic derivative.
+- **Circle in joint space**: A circle in the space of all joints without joint limits. This case requires only the curve.
+
+First, create the required `.npy` files using the `precompute_curve.py` script. You must comment/uncomment the appropriate sections to select the desired curve:
+
+- For the **cylindrical surface**, ensure the cylindrical section is active. This will create two files: `data/cylindrical.npy` (the curve) and `data/cylindrical_derivative.npy` (the curve derivative).
+- For the **circle**, ensure the circle section is active and **comment out** `np.save(dcurve_path, dcurve)` since no derivative is needed. This will create only `data/circle.npy`.
+
+Then, run the experiment:
+
 ```bash
 python ./control.py
 ```
 
+The robot will go to the configuration `q=[0, 10, 0, 15, 0, 40, 30]` and wait for 5 seconds.
+
+For both the real experiment (`control.py`) and the simulation (`expected_movement.py`), the `RUN_CIRCLE` flag selects which curve to use. Set `RUN_CIRCLE = True` for the circle case, or `False` for the cylindrical case. The scripts handle the rest automatically, but you may adjust gains and other parameters in the respective code sections.
+
+> **Note**: The controller now uses a QP with CBF for joint limits and collisions (self and with virtual cylinder, although this is not relevant for the circle case). The old version used a damped pseudo-inverse approach. Results might differ slightly.
+
 ## Results
 
-Expected movement can be checked agains the simulation in `expected_movement.py` script.
+Expected movement can be checked against the simulation in `expected_movement.py` script.
 
 Data can be analyzed using the `check_experiment_results.py`, although it will consider only data used in the previous work.
 
