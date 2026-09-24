@@ -94,18 +94,22 @@ DEFAULT_ACTION_TIMEOUT_DURATION = 60  # seconds (time to assume communication fa
 INITIAL_CONFIG = np.array([0, 10, 0, 15, 0, 40, 30])  # degrees
 N_JOINTS = 7
 
+RUN_CIRCLE = False  # Either runs Cylindrical case (False) or old circle (True)
 # ----------------------------------------------------------------------
 #                                VF Gains
 # ----------------------------------------------------------------------
 # kn = kn1 * tanh(kn2 * sqrt(D))
 # kt = kt1 * (1 - kt2 * tanh(kn3 * sqrt(D))
 
-# OLD PARAMS
-# kt1, kt2, kt3 = 0.07, 1.0, 0.75
-# kn1, kn2 = 0.1, kt3
-# NEW PARAMS
-kt1, kt2, kt3 = 0.1, 1.0, 0.75
-kn1, kn2 = 1.0, kt3
+if RUN_CIRCLE:
+    # Old params for circle case
+    kt1, kt2, kt3 = 0.03, 1.0, 0.75
+    kn1, kn2 = 0.1, kt3
+else:
+    # New params for Cylindrical case
+    kt1, kt2, kt3 = 0.1, 1.0, 0.75
+    kn1, kn2 = 1.0, kt3
+
 # ds is used if curve_derivative is None
 # delta is used to compute normal component numerically
 # delta should be equal to the sampling time
@@ -116,7 +120,11 @@ ds, delta = 1e-3, 1e-3
 # ----------------------------------------------------------------------
 axial_amplitude = 0.1 / 2
 n_axial_oscillations = 3
-center = np.array([0.0, 0.25, 0.6])
+if RUN_CIRCLE:
+    # Move cylinder far from robot to avoid any collision
+    center = np.array([50.0, 50.0, 50.0])
+else:
+    center = np.array([0.0, 0.25, 0.6])
 radius = 0.07
 cylinder_htm = np.eye(4)
 height = 2.0 * axial_amplitude + 0.05
@@ -148,7 +156,10 @@ h_gdf, eps_gdf = 2e-3, 1e-3
 # ----------------------------------------------------------------------
 file_parent_path = os.path.dirname(__file__)
 data_path = os.path.join(file_parent_path, "/data")
-curve_file_name = "cylindrical.npy"
+if RUN_CIRCLE:
+    curve_file_name = "circle.npy"
+else:
+    curve_file_name = "cylindrical.npy"
 dcurve_file_name = "cylindrical_derivative.npy"
 curve_path = os.path.join(data_path, curve_file_name)
 dcurve_path = os.path.join(data_path, dcurve_file_name)
@@ -239,7 +250,7 @@ class kinovaExperiment:
         self.hist_time = []  # accumulates t_now - t_initi
         self.hist_dist = []  # accumulates distance to closest point
         self.hist_closest_index = []  # accumulates i* (closest point index)
-        self.hist_time_vf = [] # time spent computing VF
+        self.hist_time_vf = []  # time spent computing VF
         self.qdot_lb = qdot_lb
         self.qdot_ub = qdot_ub
         self.q_lb = q_lb
@@ -649,7 +660,10 @@ def main():
             print(f"Loading curve from {curve_path}")
             curve = np.load(curve_path, allow_pickle=True)
             # curve = [H for H in curve_raw]
-            dcurve = np.load(dcurve_path, allow_pickle=True)
+            if RUN_CIRCLE:
+                dcurve = []
+            else:
+                dcurve = np.load(dcurve_path, allow_pickle=True)
 
             kinova_exp = kinovaExperiment(
                 router,

@@ -43,15 +43,22 @@ def get_pos_ori_error(state, closest_point):
 #                               LOAD CURVE
 # ----------------------------------------------------------------------
 
+RUN_CIRCLE = True
 path = "./data"
-curve_file = "cylindrical.npy"
+if RUN_CIRCLE:
+    curve_file = "circle.npy"
+else:
+    curve_file = "cylindrical.npy"
 derivative_file = "cylindrical_derivative.npy"
 curve_path = os.path.join(path, curve_file)
 dcurve_path = os.path.join(path, derivative_file)
 print(f"Loading raw curve from {curve_path}...")
 curve = np.load(curve_path, allow_pickle=True)
 print(f"Loading raw curve from {dcurve_path}...")
-dcurve = np.load(dcurve_path, allow_pickle=True)
+if RUN_CIRCLE:
+    dcurve = []
+else:
+    dcurve = np.load(dcurve_path, allow_pickle=True)
 
 # %%
 # ----------------------------------------------------------------------
@@ -59,7 +66,10 @@ dcurve = np.load(dcurve_path, allow_pickle=True)
 # ----------------------------------------------------------------------
 axial_amplitude = 0.1 / 2
 n_axial_oscillations = 3
-center = np.array([0.0, 0.25, 0.6])
+if RUN_CIRCLE:
+    center = np.array([50.0, 50.0, 50.0])
+else:
+    center = np.array([0.0, 0.25, 0.6])
 radius = 0.07
 htm = np.eye(4)
 height = 2.0 * axial_amplitude + 0.05
@@ -74,6 +84,7 @@ htm[:3, 3] = center
 #     n_axial_oscillations=n_axial_oscillations,
 #     center=center,
 # )
+
 curve_ub = CurveSE3(points=curve)
 
 
@@ -109,11 +120,16 @@ dt = 0.01
 print_log = False # Prints the constraint violations
 
 # Vector field
-kt1, kt2, kt3 = 0.1, 1.0, 0.75
-kn1, kn2 = 0.1 * 10, 0.75
+gain_anim = 10.0
+if RUN_CIRCLE:
+    kt1, kt2, kt3 = 0.03 * gain_anim, 1.0, 0.75
+    kn1, kn2 = 0.1 * gain_anim, kt3
+else:
+    kt1, kt2, kt3 = 0.1, 1.0, 0.75
+    kn1, kn2 = 1.0, 0.75
 # CBF
 eta = 10.0
-eta_lim = 1 / 1e-3
+eta_lim = 1 / 1e-3 # 1 / dt
 eta_self = 0.6
 delta_collision = 0.005
 gain_qp = 1.0

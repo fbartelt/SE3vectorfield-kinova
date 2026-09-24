@@ -214,6 +214,7 @@ radius = 0.15
 # ----------------------------------------------------------------------
 #                          CYLINDRICAL SURFACE
 # ----------------------------------------------------------------------
+
 axial_amplitude = 0.1 / 2
 n_axial_oscillations = 3
 center = np.array([0.0, 0.25, 0.6])
@@ -243,6 +244,7 @@ curve, dcurve = cylindrical_surface(
 
 data_folder = "./data"
 curve_file_name = "cylindrical.npy"
+# curve_file_name = "circle.npy"
 dcurve_file_name = "cylindrical_derivative.npy"
 directory = Path(data_folder)
 directory.mkdir(parents=True, exist_ok=True)
