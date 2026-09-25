@@ -43,7 +43,7 @@ def get_pos_ori_error(state, closest_point):
 #                               LOAD CURVE
 # ----------------------------------------------------------------------
 
-RUN_CIRCLE = True
+RUN_CIRCLE = False
 path = "./data"
 if RUN_CIRCLE:
     curve_file = "circle.npy"

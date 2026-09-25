@@ -71,21 +71,37 @@ QDOT_UPPER_BOUND = np.array([79.64, 79.64, 79.64, 79.64, 69.91, 69.91, 69.91]).r
 )
 QDOT_LOWER_BOUND = -QDOT_UPPER_BOUND
 # q limits (from manual) in rad
-Q_UPPER_BOUND = config_mapping(
-    np.array(
-        [
-            np.inf,
-            np.deg2rad(128.9),
-            np.inf,
-            np.deg2rad(147.8),
-            np.inf,
-            np.deg2rad(120.3),
-            np.inf,
-        ]
-    ),
-    "from_kinova",
-).reshape(-1, 1)
-Q_LOWER_BOUND = -Q_UPPER_BOUND
+_KINOVA_LIMITS_DEG = np.array([np.inf, 128.9, np.inf, 147.8, np.inf, 120.3, np.inf])
+Q_UPPER_BOUND = config_mapping(_KINOVA_LIMITS_DEG, "from_kinova").reshape(-1, 1)
+Q_LOWER_BOUND = config_mapping(-_KINOVA_LIMITS_DEG, "from_kinova").reshape(-1, 1)
+# Q_UPPER_BOUND = config_mapping(
+#     np.array(
+#         [
+#             np.inf,
+#             np.deg2rad(128.9),
+#             np.inf,
+#             np.deg2rad(147.8),
+#             np.inf,
+#             np.deg2rad(120.3),
+#             np.inf,
+#         ]
+#     ),
+#     "from_kinova",
+# ).reshape(-1, 1)
+# Q_LOWER_BOUND = config_mapping(
+#     -np.array(
+#         [
+#             np.inf,
+#             np.deg2rad(128.9),
+#             np.inf,
+#             np.deg2rad(147.8),
+#             np.inf,
+#             np.deg2rad(120.3),
+#             np.inf,
+#         ]
+#     ),
+#     "from_kinova",
+# ).reshape(-1, 1)
 
 DEFAULT_CYCLIC_SAMPLING_TIME = 0.001
 DEFAULT_MAX_EXPERIMENT_TIME = 60 * 3  # SECONDS
@@ -103,12 +119,12 @@ RUN_CIRCLE = False  # Either runs Cylindrical case (False) or old circle (True)
 
 if RUN_CIRCLE:
     # Old params for circle case
-    kt1, kt2, kt3 = 0.03, 1.0, 0.75
-    kn1, kn2 = 0.1, kt3
+    kt1, kt2, kt3 = 0.03 * 10, 1.0, 0.75
+    kn1, kn2 = 0.1 * 8, kt3
 else:
     # New params for Cylindrical case
-    kt1, kt2, kt3 = 0.1, 1.0, 0.75
-    kn1, kn2 = 1.0, kt3
+    kt1, kt2, kt3 = 0.2, 1.0, 0.75
+    kn1, kn2 = 2.0, kt3
 
 # ds is used if curve_derivative is None
 # delta is used to compute normal component numerically
@@ -144,7 +160,7 @@ cylinder = Cylinder(
 #                                 CBF
 # ----------------------------------------------------------------------
 eta = 10.0
-eta_lim = 1 / 1e-3
+eta_lim = 1e3 #1 / 1e-3
 eta_self = 0.6
 delta_collision = 0.005
 gain_qp = 1.0
@@ -155,7 +171,7 @@ h_gdf, eps_gdf = 2e-3, 1e-3
 #                                PATHS
 # ----------------------------------------------------------------------
 file_parent_path = os.path.dirname(__file__)
-data_path = os.path.join(file_parent_path, "/data")
+data_path = os.path.join(file_parent_path, "./data")
 if RUN_CIRCLE:
     curve_file_name = "circle.npy"
 else:
@@ -163,7 +179,8 @@ else:
 dcurve_file_name = "cylindrical_derivative.npy"
 curve_path = os.path.join(data_path, curve_file_name)
 dcurve_path = os.path.join(data_path, dcurve_file_name)
-experiment_data_name = "kinova_experiment.pkl"
+experiment_name = "circle" if RUN_CIRCLE else "cylindrical"
+experiment_data_name = f"kinova_experiment_{experiment_name}.pkl"
 save_path = os.path.join(data_path, experiment_data_name)
 print_interval = 1  # second
 
@@ -509,7 +526,8 @@ class kinovaExperiment:
             "POSITION"
         )
         # device_id = 1  # first actuator has id = 1
-        for device_id in range(1, self.actuator_count + 1):
+        # for device_id in range(1, self.actuator_count + 1):
+        for device_id in range(self.actuator_count):
             self.SendCallWithRetry(
                 self.actuator_config.SetControlMode, 3, control_mode_message, device_id
             )
@@ -526,11 +544,12 @@ class kinovaExperiment:
     # =========================================================================
     # ================================ EDIT HERE ==============================
     def control_step(self, q, current_time, final_time):
+        q = np.asarray(q).reshape(-1, 1)  # <-- add this
         J, H = self.robot.jac_geo(q=q)
         J, H = np.array(J), np.array(H)
         t0 = time.perf_counter()
 
-        xi, min_dist, closest_index = self.robot.vector_field_se3(
+        xi, min_dist, closest_index = self.robot.vector_field_SE3(
             H,
             self.curve,
             kt1=self.kt1,
@@ -556,20 +575,22 @@ class kinovaExperiment:
         # ------------------------------------------------------------------
         #                        DAMPED PSEUDOINVERSE
         # ------------------------------------------------------------------
+
         # qdot = Utils.dp_inv(J, 1e-4) @ twist_
         # qdot = np.array(qdot).reshape(-1, 1)
 
         # ------------------------------------------------------------------
         #                           QP with CBF
         # ------------------------------------------------------------------
+
         H_qp = 2 * (J.transpose() @ J + 1e-4 * np.identity(7))
         f_qp = -2 * gain_qp * np.array(J.T @ twist_).reshape(-1)
-        dist_struct = self.robot.compute_dist(obj=cylinder, h=h_gdf, eps=eps_gdf)
-        dist_struct_auto = self.robot.compute_dist_auto(h=h_gdf, eps=eps_gdf)
+        dist_struct = self.robot.compute_dist(q=q, obj=cylinder, h=h_gdf, eps=eps_gdf)
+        dist_struct_auto = self.robot.compute_dist_auto(q=q, h=h_gdf, eps=eps_gdf)
         A_qp_env = dist_struct.jac_dist_mat
         A_qp_self = dist_struct_auto.jac_dist_mat
         A_lim = np.vstack([np.eye(N_JOINTS), -np.eye(N_JOINTS)])
-        A_qp = np.vstack([A_qp_env, A_qp_self, A_lim])
+        A_qp = np.vstack([A_qp_env, A_qp_self])#, A_lim])
         b_qp_env = -eta * (dist_struct.dist_vect - delta_collision)
         b_qp_self = -eta_self * (dist_struct_auto.dist_vect - delta_collision)
         b_lim = np.vstack(
@@ -578,8 +599,30 @@ class kinovaExperiment:
                 -eta_lim * (self.q_ub - q),  # upper
             ]
         )
-        b_qp = np.vstack([b_qp_env, b_qp_self, b_lim])
+        b_qp = np.vstack([b_qp_env, b_qp_self])#, b_lim])
         # min 0.5u^T H u + f^T u, s.t. Au >= b
+
+        # print("----- t =", current_time)
+        # print("q_rad      =", q.ravel())
+        # print("q_lb       =", self.q_lb.ravel())
+        # print("q_ub       =", self.q_ub.ravel())
+        # print(
+        #     "env  shape =",
+        #     dist_struct.jac_dist_mat.shape,
+        #     " env  min dist =",
+        #     np.asarray(dist_struct.dist_vect).ravel().min(),
+        # )
+        # print(
+        #     "self shape =",
+        #     dist_struct_auto.jac_dist_mat.shape,
+        #     " self min dist =",
+        #     np.asarray(dist_struct_auto.dist_vect).ravel().min(),
+        # )
+        # print("b_env min  =", np.asarray(b_qp_env).ravel().min())
+        # print("b_self min =", np.asarray(b_qp_self).ravel().min())
+        # print("b_lim      =", np.asarray(b_lim).ravel())
+        # print("A_qp shape =", A_qp.shape, " b_qp shape =", b_qp.shape)
+
         qdot = Utils.solve_qp(
             np.matrix(H_qp), np.matrix(f_qp).T, np.matrix(A_qp), np.matrix(b_qp)
         )
@@ -590,6 +633,16 @@ class kinovaExperiment:
         qdot_deg = np.clip(qdot_deg, self.qdot_lb, self.qdot_ub)
 
         log_msg = f"\rDist = {min_dist} (VF took {solver_time_ms}ms)"
+
+        # print("q_rad      =", q.ravel())
+        # print("env  min   =", dist_struct.dist_vect.min())
+        # print("self min   =", dist_struct_auto.dist_vect.min())
+        # print("b_env min  =", b_qp_env.min())
+        # print("b_self min =", b_qp_self.min())
+        # print("A_env shape =", A_qp_env.shape, " A_self shape =", A_qp_self.shape)
+        # print("q_lb =", self.q_lb.ravel())
+        # print("q_ub =", self.q_ub.ravel())
+
         bar = progress_bar(i=current_time, imax=final_time, return_bar=True)
         log_msg = "[" + log_msg + "]" + bar
 
@@ -625,7 +678,7 @@ def save_data(path, kinova_exp):
             "hist_time_vf": kinova_exp.hist_time_vf,
         }
         pickle.dump(data, f, protocol=pickle.HIGHEST_PROTOCOL)
-    print("Saved pickled data.")
+    print(f"Saved pickled data at {save_path}.")
 
 
 def main():
