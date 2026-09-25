@@ -179,3 +179,4 @@ py311
 *.pkl
 *.npy
 *.html
+*.bak
