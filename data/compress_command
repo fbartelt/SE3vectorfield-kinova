@@ -1,0 +1,1 @@
+7z a -t7z -m0=lzma2 -mx=9 -md=64m -mfb=273 -ms=on -mmt=on experiment_and_curves.7z *.pkl *.npy
