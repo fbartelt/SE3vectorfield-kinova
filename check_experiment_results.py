@@ -6,12 +6,18 @@ import plotly.graph_objects as go
 from uaibot import Robot
 from plotly.subplots import make_subplots
 
+exp_case = "circle"
+if "cyl" in exp_case:
+    curve_file_name = "cylindrical.npy"
+elif "circ" in exp_case:
+    curve_file_name = "circle.npy"
+else:
+    raise FileNotFoundError("This file is not part of this experiment")
 data_path = "./data"
-curve_file_name = "cylindrical.npy"
 dcurve_file_name = "cylindrical_derivative.npy"
 curve_path = os.path.join(data_path, curve_file_name)
 dcurve_path = os.path.join(data_path, dcurve_file_name)
-experiment_data_name = "kinova_experiment.pkl"
+experiment_data_name = f"kinova_experiment_{exp_case}.pkl"
 data_path = os.path.join(data_path, experiment_data_name)
 
 with open(data_path, "rb") as f:
@@ -46,7 +52,14 @@ def get_pos_ori_error(state, closest_point):
     return pos_err, ori_err
 
 
-def plot_errors(time_vec, dist_hist, pos_errors, ori_errors):
+def plot_errors(
+    time_vec,
+    dist_hist,
+    pos_errors,
+    ori_errors,
+    width=718.110,
+    height=450,
+):
     fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02)
     fig.add_trace(
         go.Scatter(x=time_vec, y=dist_hist, showlegend=False, line=dict(width=3)),
@@ -96,7 +109,13 @@ def plot_errors(time_vec, dist_hist, pos_errors, ori_errors):
         col=1,
         title_standoff=30,
     )
-    fig.update_layout(margin=dict(l=0, r=0, b=0, t=0))
+    fig.update_layout(
+        margin=dict(l=0, r=0, b=0, t=0),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        width=width,
+        height=height,
+    )
 
     return fig
 
@@ -105,8 +124,6 @@ ori_errs = []
 pos_errs = []
 
 for i, q in enumerate(config_hist[:-1]):
-    # for i in range(np.minimum(len(config_hist), len(hist_index))):
-    # q = config_hist[i]
     q_ = np.array(q.copy()).reshape(-1, 1)
     state = np.array(kinova.fkm(q=q_))
     closest_point = np.array(curve[hist_index[i]])
@@ -115,13 +132,9 @@ for i, q in enumerate(config_hist[:-1]):
     pos_errs.append(pos_err)
     ori_errs.append(ori_err)
 
-# makes a figure with two plots, one above another. First the position error, then the orientation error
-dt = 0.01
-# time_vec = np.arange(0, len(pos_errs) * dt, dt)
-# time_vec = np.arange(0, len(pos_errs))
+final_index = len(hist_time)
+init_index = 1
 
-final_index = np.nonzero(np.array(hist_time) > 170.845)[0][0]
-init_index = np.nonzero(np.array(hist_dist) > 0.3961)[0][0]
 time_vec = np.array(hist_time[init_index:final_index]) - hist_time[init_index]
 hist_dist = hist_dist[init_index:final_index]
 pos_errs = pos_errs[init_index:final_index]
@@ -129,20 +142,22 @@ ori_errs = ori_errs[init_index:final_index]
 
 fig = plot_errors(time_vec, hist_dist, pos_errs, ori_errs)
 
-# fig.update_layout(plot_bgcolor='white', paper_bgcolor='white',
-#   width=718.110, height=605.9155)
-fig.update_layout(
-    plot_bgcolor="white", paper_bgcolor="white", width=718.110, height=450
-)
-# fig.update_layout(plot_bgcolor='white', paper_bgcolor='white',
-#                   width=800, height=600)
 fig.show()
 
 # %%
-"""CREATE ANIMATION"""
+# ----------------------------------------------------------------------
+#                                ANIMATION
+# ----------------------------------------------------------------------
 
 
-def animate_distance(distances, pos_errors, ori_errors, time_data, fig=None):
+def animate_distance(
+    distances,
+    pos_errors,
+    ori_errors,
+    time_data,
+    fig=None,
+    total_duration=None,
+):
     """Create an animation of the distance metric between the object and the
     target curve, along with the position and orientation errors.
 
@@ -159,6 +174,9 @@ def animate_distance(distances, pos_errors, ori_errors, time_data, fig=None):
     fig : plotly.graph_objects.Figure, optional
         Existing figure to add the animation to. If None, a new figure is
         created. The default is None.
+    total_duration: float
+        Total duration of the animation in seconds. If None, total time
+        of time_data is used.
 
     Returns
     -------
@@ -167,6 +185,13 @@ def animate_distance(distances, pos_errors, ori_errors, time_data, fig=None):
     """
     width_ = 2
     gridcolor = "rgba(0, 0, 0, 0.2)"
+
+    if total_duration is None:
+        total_duration = time_data[-1] - time_data[0]
+
+    n_frames = len(time_data)
+    frame_duration_ms = 1000.0 * total_duration / n_frames
+
     if fig is None:
         fig = make_subplots(rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.02)
         fig.add_trace(
@@ -310,10 +335,13 @@ def animate_distance(distances, pos_errors, ori_errors, time_data, fig=None):
                         args=[
                             None,
                             {
-                                "frame": {"duration": 82.9999, "redraw": False},
+                                "frame": {
+                                    "duration": frame_duration_ms,
+                                    "redraw": False,
+                                },
                                 "fromcurrent": True,
                                 "transition": {
-                                    "duration": 0.01,
+                                    "duration": 0.0,
                                     "easing": "cubic-in-out",
                                 },
                             },
@@ -360,7 +388,14 @@ pos_errors = pos_errs[::skip]
 ori_errors = ori_errs[::skip]
 distances = hist_dist[::skip]
 
-fig = animate_distance(distances, pos_errors, ori_errors, time_data, fig=None)
+fig = animate_distance(
+    distances,
+    pos_errors,
+    ori_errors,
+    time_data,
+    fig=None,
+    total_duration=180,
+)
 # fig.show()
 # %%
 import plotly.io as pio
