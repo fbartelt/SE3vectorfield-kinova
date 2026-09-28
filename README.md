@@ -35,17 +35,6 @@ chmod +x ./reset_network.sh
 ./reset_network.sh
 ```
 
-## Run basic tests
-
-This will set q0=0 and rotate each joint of the robot by 5 degrees/s and save configuration data. Finally, the robot returns to the default pose.
-
-Log files will be `tests_config.npy` and `tests_time.npy` and should contain the configuration values and timestamps of the tests.
-```bash
-python ./kinova_basic_tests.py
-```
-
-If everything works, you should now perform the experiment by:
-
 ## Run the experiment
 
 The kinematic control uses the Advanced Interface of BaseCyclic which has a sampling rate of 1kHz.
