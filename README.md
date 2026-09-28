@@ -69,6 +69,6 @@ Distance plot (EC-distance + position and orientation errors) can be visualized 
 
 An animation of the distance evolution can be generated using [`experiment_distance_animation.py`](./experiment_distance_animation.py)
 
-An animation of the experiment can be generated using [`experiment_distance_animation.py`](./experiment_animation.py)
+An animation of the experiment can be generated using [`experiment_animation.py`](./experiment_animation.py)
 
 > [Kinova Tutorials Playlist](https://youtube.com/playlist?list=PLz1XwEYRuku5rZjJWBr6SDi93jgWZ4FHL&si=zSrxxHjoIQz1Fg0k)
