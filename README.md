@@ -26,6 +26,8 @@ chmod +x ./kinova_network_setup.sh
 ./kinova_network_setup.sh
 ```
 
+You may check if the connection is up by pinging the robot at `192.168.1.10` or accessing the web interface http://192.168.1.10/
+
 To reverse the changes, run:
 
 ```bash
