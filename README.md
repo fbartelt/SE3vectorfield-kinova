@@ -63,10 +63,12 @@ For both the real experiment (`control.py`) and the simulation (`expected_moveme
 
 ## Results
 
-Expected movement can be checked against the simulation in `expected_movement.py` script.
+Expected movement can be checked against the simulation in [`expected_movement.py`](./expected_movement.py) script.
 
-Data can be analyzed using the `check_experiment_results.py`, although it will consider only data used in the previous work.
+Distance plot (EC-distance + position and orientation errors) can be visualized through [`experiment_distance_results.py`](./experiment_distance_results.py).
 
-You can animate the experiment data using the `experiment_animation.py` script, although you it will probably need heavy modifications.
+An animation of the distance evolution can be generated using [`experiment_distance_animation.py`](./experiment_distance_animation.py)
+
+An animation of the experiment can be generated using [`experiment_distance_animation.py`](./experiment_animation.py)
 
 > [Kinova Tutorials Playlist](https://youtube.com/playlist?list=PLz1XwEYRuku5rZjJWBr6SDi93jgWZ4FHL&si=zSrxxHjoIQz1Fg0k)
