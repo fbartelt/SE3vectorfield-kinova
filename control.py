@@ -123,7 +123,7 @@ if RUN_CIRCLE:
     kn1, kn2 = 0.1 * 8, kt3
 else:
     # New params for Cylindrical case
-    kt1, kt2, kt3 = 0.2, 1.0, 0.75
+    kt1, kt2, kt3 = 0.1, 1.0, 0.75
     kn1, kn2 = 2.0, kt3
 
 # ds is used if curve_derivative is None
@@ -150,7 +150,7 @@ cylinder_htm[:3, 3] = center
 cylinder = Cylinder(
     htm=cylinder_htm,
     # 90% of original radius to force D->0
-    radius=radius * 0.9,
+    radius=radius * 0.8,
     height=cylinder_height,
     opacity=0.3,
     color="blue",
