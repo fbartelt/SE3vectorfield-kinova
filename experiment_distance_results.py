@@ -5,8 +5,9 @@ import numpy as np
 import plotly.graph_objects as go
 from uaibot import Robot
 from plotly.subplots import make_subplots
+from pathlib import Path
 
-exp_case = "circle"
+exp_case = "cylindrical"
 if "cyl" in exp_case:
     curve_file_name = "cylindrical.npy"
 elif "circ" in exp_case:
@@ -19,6 +20,12 @@ curve_path = os.path.join(data_path, curve_file_name)
 dcurve_path = os.path.join(data_path, dcurve_file_name)
 experiment_data_name = f"kinova_experiment_{exp_case}.pkl"
 data_path = os.path.join(data_path, experiment_data_name)
+
+media_path = "./media"
+media_dir = Path(media_path)
+media_dir.mkdir(parents=True, exist_ok=True)
+fig_name = f"distance_and_errors_{exp_case}.pdf"
+fig_path = os.path.join(media_path, fig_name)
 
 with open(data_path, "rb") as f:
     data = pickle.load(f)
@@ -110,7 +117,7 @@ def plot_errors(
         title_standoff=30,
     )
     fig.update_layout(
-        margin=dict(l=0, r=0, b=0, t=0),
+        margin=dict(l=0, r=0, b=50, t=0),
         plot_bgcolor="white",
         paper_bgcolor="white",
         width=width,
@@ -143,3 +150,4 @@ ori_errs = ori_errs[init_index:final_index]
 fig = plot_errors(time_vec, hist_dist, pos_errs, ori_errs)
 
 fig.show()
+fig.write_image(fig_path)
