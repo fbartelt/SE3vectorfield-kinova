@@ -2,7 +2,7 @@
 import os
 import pickle
 import numpy as np
-from uaibot import Robot, Simulation
+from uaibot import Robot, Simulation, PointLight, Utils
 from uaibot.simobjects.curve import CurveSE3
 
 
@@ -24,6 +24,7 @@ def config_mapping(q, maptype="from_kinova"):
 
 
 exp_case = "cylindrical"
+forwhat = "figure"
 if "cyl" in exp_case:
     curve_file_name = "cylindrical.npy"
 elif "circ" in exp_case:
@@ -58,13 +59,27 @@ target = CurveSE3(
     points=curve,
     size=0.02,
     color="cyan",
-    frame_size=0.1,
+    frame_size=0.05,
     num_frames=5,
 )
 
 kinova.set_ani_frame(q=config_mapping([0, 10, 0, 15, 0, 40, 30], "from_kinova"))
 
-sim = Simulation.create_sim_grid([kinova, target])
+if "fig" in forwhat.lower():
+    sim = Simulation([kinova, target])
+    li = 2.5
+    sim.add(
+        [
+            PointLight(color="#d6d5d2", intensity=li, htm=Utils.trn([-1.5, -1.5, 2.0])),
+            PointLight(color="#d6d5d2", intensity=li, htm=Utils.trn([-1.5, 1.5, 2.0])),
+            PointLight(color="#d6d5d2", intensity=li, htm=Utils.trn([1.5, -1.5, 2.0])),
+            PointLight(color="#d6d5d2", intensity=li, htm=Utils.trn([1.5, 1.5, 2.0])),
+            # PointLight(color="#d6d5d2", intensity=6, htm=Utils.trn([0, 0, 5]))
+            PointLight(color="#000000", intensity=9, htm=Utils.trn([0, 0, 5])),
+        ]
+    )
+else:
+    sim = Simulation.create_sim_grid([kinova, target])
 
 sim.set_parameters(background_color="white", ambient_light_intensity=2)
 
@@ -79,3 +94,4 @@ for i, q_ in enumerate(config_hist[:final_index]):
 sim.set_parameters(width=1480, height=960)
 
 sim.run_in_browser()
+sim.save("./media", f"{exp_case}_{forwhat}")
